@@ -1,0 +1,483 @@
+import React, { useState, useEffect } from 'react';
+
+// Tailwind CSS is assumed to be available in the environment
+// For icons, we'll use lucide-react (ensure it's available or use inline SVGs)
+import { DollarSign, Briefcase, GraduationCap, MapPin, Building, User, TrendingUp, Award, Zap, Globe, Home } from 'lucide-react';
+
+function App() {
+    // --- Data Definitions (MUST match Python preprocessing) ---
+    const EDUCATION_LEVELS = ['High School', 'Associate', 'Bachelor\'s', 'Master\'s', 'PhD'];
+    const JOB_TITLES = ['Software Engineer', 'Data Scientist', 'Product Manager', 'UX Designer', 'Marketing Specialist', 'HR Generalist', 'Sales Executive'];
+    const INDUSTRIES = ['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 'Education'];
+    const LOCATIONS = ['New York', 'San Francisco', 'Austin', 'Chicago', 'Remote', 'London', 'Berlin'];
+    const SKILLS_LIST = ['Python', 'SQL', 'AWS', 'Azure', 'GCP', 'Machine Learning', 'Deep Learning', 'Data Analysis', 'Project Management', 'Communication', 'Leadership', 'Salesforce', 'Tableau', 'PowerBI', 'Excel', 'JavaScript', 'React', 'Node.js', 'Java', 'C++', 'Marketing Strategy', 'HR Policies'];
+    const COMPANY_SIZES = ['Small (1-50)', 'Medium (51-500)', 'Large (501-5000)', 'Enterprise (>5000)'];
+
+    // --- Currency Conversion Rate ---
+    const USD_TO_INR_RATE = 83.5; // Approximate rate as of mid-2025
+
+    // --- Mock Global Salary Data (Simplified for demonstration) ---
+    // In a real application, this would come from a robust database or API.
+    const GLOBAL_JOB_SALARIES = {
+        'Software Engineer': {
+            'New York': 120000, 'San Francisco': 140000, 'Austin': 100000,
+            'Chicago': 95000, 'Remote': 90000, 'London': 80000, 'Berlin': 75000
+        },
+        'Data Scientist': {
+            'New York': 130000, 'San Francisco': 150000, 'Austin': 110000,
+            'Chicago': 100000, 'Remote': 95000, 'London': 85000, 'Berlin': 80000
+        },
+        'Product Manager': {
+            'New York': 115000, 'San Francisco': 135000, 'Austin': 98000,
+            'Chicago': 90000, 'Remote': 88000, 'London': 78000, 'Berlin': 72000
+        },
+        'UX Designer': {
+            'New York': 105000, 'San Francisco': 125000, 'Austin': 90000,
+            'Chicago': 85000, 'Remote': 80000, 'London': 70000, 'Berlin': 65000
+        },
+        'Marketing Specialist': {
+            'New York': 80000, 'San Francisco': 90000, 'Austin': 70000,
+            'Chicago': 65000, 'Remote': 60000, 'London': 55000, 'Berlin': 50000
+        },
+        'HR Generalist': {
+            'New York': 75000, 'San Francisco': 85000, 'Austin': 65000,
+            'Chicago': 60000, 'Remote': 55000, 'London': 50000, 'Berlin': 45000
+        },
+        'Sales Executive': {
+            'New York': 90000, 'San Francisco': 100000, 'Austin': 80000,
+            'Chicago': 75000, 'Remote': 70000, 'London': 65000, 'Berlin': 60000
+        },
+    };
+
+    // --- Mock Cost of Living Data (Monthly average, simplified for demonstration) ---
+    // This is a very rough estimate and can vary widely.
+    const COST_OF_LIVING_DATA = {
+        'New York': 4500, // USD/month
+        'San Francisco': 5000,
+        'Austin': 3000,
+        'Chicago': 3200,
+        'Remote': 2000, // Assumed lower for remote
+        'London': 3800,
+        'Berlin': 2800,
+    };
+
+
+    // --- State for User Inputs ---
+    const [formData, setFormData] = useState({
+        Age: 30,
+        Gender: 'Male',
+        Years_Experience: 5,
+        Education_Level: 'Bachelor\'s',
+        Job_Title: 'Software Engineer',
+        Industry: 'Technology',
+        Location: 'New York',
+        Company_Size: 'Medium (51-500)',
+        Performance_Rating: 3,
+        Promotions_Last_3_Years: 0,
+        Skills: [], // This will be a multi-select
+    });
+
+    const [predictedSalaryUSD, setPredictedSalaryUSD] = useState(null);
+    const [predictedSalaryINR, setPredictedSalaryINR] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [globalAvgSalaries, setGlobalAvgSalaries] = useState(null);
+    const [showCostOfLiving, setShowCostOfLiving] = useState(false);
+    const [costOfLiving, setCostOfLiving] = useState(null);
+
+    // --- Mock Model (Simulates Python model's prediction logic) ---
+    // In a real app, this would be an API call to your backend.
+    // This mock model uses the same simplified formula as the Python data generation.
+    const mockPredictor = (inputData) => {
+        let salary = 50000; // Base salary
+
+        // Years of Experience (scaled by SALARY_RANGE / 30 from Python)
+        salary += inputData.Years_Experience * (150000 / 30);
+
+        // Education Level
+        const educationBonus = {
+            'High School': 0, 'Associate': 5000, 'Bachelor\'s': 15000,
+            'Master\'s': 30000, 'PhD': 50000
+        };
+        salary += educationBonus[inputData.Education_Level] || 0;
+
+        // Job Title
+        const jobTitleBonus = {
+            'Software Engineer': 20000, 'Data Scientist': 25000, 'Product Manager': 18000,
+            'UX Designer': 15000, 'Marketing Specialist': 10000, 'HR Generalist': 8000,
+            'Sales Executive': 12000
+        };
+        salary += jobTitleBonus[inputData.Job_Title] || 0;
+
+        // Location
+        const locationBonus = {
+            'New York': 30000, 'San Francisco': 35000, 'Austin': 15000,
+            'Chicago': 10000, 'Remote': 5000, 'London': 25000, 'Berlin': 20000
+        };
+        salary += locationBonus[inputData.Location] || 0;
+
+        // Performance Rating
+        salary += inputData.Performance_Rating * 2000;
+
+        // Promotions Last 3 Years
+        salary += inputData.Promotions_Last_3_Years * 5000;
+
+        // Skill Count (new feature engineered in Python)
+        salary += inputData.Skills.length * 1000; // Each skill adds a bonus
+
+        // Add some random noise to make it more realistic (optional for demo)
+        // salary += (Math.random() - 0.5) * 2 * 10000; // +/- 10000
+
+        // Ensure salary is positive and within a reasonable range (matching Python's max/min)
+        return Math.max(10000, Math.min(salary, 50000 + 150000 + 100000));
+    };
+
+    // --- Handle Form Input Changes ---
+    const handleChange = (e) => {
+        const { name, value, type, selectedOptions, checked } = e.target;
+        if (type === 'select-multiple') {
+            const skills = Array.from(selectedOptions).map(option => option.value);
+            setFormData({ ...formData, [name]: skills });
+        } else if (type === 'checkbox') {
+            setShowCostOfLiving(checked);
+        }
+        else {
+            setFormData({ ...formData, [name]: type === 'number' ? parseFloat(value) : value });
+        }
+    };
+
+    // --- Handle Prediction Request ---
+    const handlePredict = async () => {
+        setLoading(true);
+        setError(null);
+        setPredictedSalaryUSD(null);
+        setPredictedSalaryINR(null);
+        setGlobalAvgSalaries(null);
+        setCostOfLiving(null);
+
+        try {
+            // Simulate API call delay
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // Use the mock predictor
+            const predictionUSD = mockPredictor(formData);
+            setPredictedSalaryUSD(predictionUSD.toFixed(2));
+            setPredictedSalaryINR((predictionUSD * USD_TO_INR_RATE).toFixed(2));
+
+            // Get global average salaries for the selected job title
+            const jobTitle = formData.Job_Title;
+            if (GLOBAL_JOB_SALARIES[jobTitle]) {
+                setGlobalAvgSalaries(GLOBAL_JOB_SALARIES[jobTitle]);
+            } else {
+                setGlobalAvgSalaries({}); // No data for this job title
+            }
+
+            // Get cost of living if requested
+            if (showCostOfLiving) {
+                const location = formData.Location;
+                setCostOfLiving(COST_OF_LIVING_DATA[location] || null);
+            }
+
+        } catch (err) {
+            console.error("Prediction error:", err);
+            setError("Failed to get prediction. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-8 font-inter">
+            <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden">
+                <header className="bg-indigo-600 text-white p-6 sm:p-8 text-center rounded-t-3xl">
+                    <h1 className="text-3xl sm:text-4xl font-bold mb-2">Employee Salary Predictor</h1>
+                    <p className="text-indigo-200 text-lg">Input employee details to estimate their salary</p>
+                </header>
+
+                <main className="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Input Form */}
+                    <div className="space-y-4">
+                        <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
+                            <Briefcase className="mr-2 text-indigo-500" size={24} /> Employee Details
+                        </h2>
+
+                        {/* Age */}
+                        <div>
+                            <label htmlFor="Age" className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                            <input
+                                type="number"
+                                id="Age"
+                                name="Age"
+                                value={formData.Age}
+                                onChange={handleChange}
+                                min="18"
+                                max="65"
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        {/* Gender */}
+                        <div>
+                            <label htmlFor="Gender" className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                            <select
+                                id="Gender"
+                                name="Gender"
+                                value={formData.Gender}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            >
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Non-binary">Non-binary</option>
+                            </select>
+                        </div>
+
+                        {/* Years Experience */}
+                        <div>
+                            <label htmlFor="Years_Experience" className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+                            <input
+                                type="number"
+                                id="Years_Experience"
+                                name="Years_Experience"
+                                value={formData.Years_Experience}
+                                onChange={handleChange}
+                                min="0"
+                                max="40"
+                                step="0.1"
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        {/* Education Level */}
+                        <div>
+                            <label htmlFor="Education_Level" className="block text-sm font-medium text-gray-700 mb-1">Education Level</label>
+                            <select
+                                id="Education_Level"
+                                name="Education_Level"
+                                value={formData.Education_Level}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            >
+                                {EDUCATION_LEVELS.map(level => (
+                                    <option key={level} value={level}>{level}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Job Title */}
+                        <div>
+                            <label htmlFor="Job_Title" className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                            <select
+                                id="Job_Title"
+                                name="Job_Title"
+                                value={formData.Job_Title}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            >
+                                {JOB_TITLES.map(title => (
+                                    <option key={title} value={title}>{title}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Industry */}
+                        <div>
+                            <label htmlFor="Industry" className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                            <select
+                                id="Industry"
+                                name="Industry"
+                                value={formData.Industry}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            >
+                                {INDUSTRIES.map(industry => (
+                                    <option key={industry} value={industry}>{industry}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Location */}
+                        <div>
+                            <label htmlFor="Location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                            <select
+                                id="Location"
+                                name="Location"
+                                value={formData.Location}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            >
+                                {LOCATIONS.map(location => (
+                                    <option key={location} value={location}>{location}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Company Size */}
+                        <div>
+                            <label htmlFor="Company_Size" className="block text-sm font-medium text-gray-700 mb-1">Company Size</label>
+                            <select
+                                id="Company_Size"
+                                name="Company_Size"
+                                value={formData.Company_Size}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            >
+                                {COMPANY_SIZES.map(size => (
+                                    <option key={size} value={size}>{size}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Performance Rating */}
+                        <div>
+                            <label htmlFor="Performance_Rating" className="block text-sm font-medium text-gray-700 mb-1">Performance Rating (1-5)</label>
+                            <input
+                                type="number"
+                                id="Performance_Rating"
+                                name="Performance_Rating"
+                                value={formData.Performance_Rating}
+                                onChange={handleChange}
+                                min="1"
+                                max="5"
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        {/* Promotions Last 3 Years */}
+                        <div>
+                            <label htmlFor="Promotions_Last_3_Years" className="block text-sm font-medium text-gray-700 mb-1">Promotions in Last 3 Years</label>
+                            <input
+                                type="number"
+                                id="Promotions_Last_3_Years"
+                                name="Promotions_Last_3_Years"
+                                value={formData.Promotions_Last_3_Years}
+                                onChange={handleChange}
+                                min="0"
+                                max="10"
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            />
+                        </div>
+
+                        {/* Skills (Multi-select) */}
+                        <div>
+                            <label htmlFor="Skills" className="block text-sm font-medium text-gray-700 mb-1">Skills (Select multiple)</label>
+                            <select
+                                id="Skills"
+                                name="Skills"
+                                multiple
+                                value={formData.Skills}
+                                onChange={handleChange}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-32"
+                            >
+                                {SKILLS_LIST.map(skill => (
+                                    <option key={skill} value={skill}>{skill}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Show Cost of Living Checkbox */}
+                        <div className="flex items-center mt-4">
+                            <input
+                                type="checkbox"
+                                id="showCostOfLiving"
+                                name="showCostOfLiving"
+                                checked={showCostOfLiving}
+                                onChange={handleChange}
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor="showCostOfLiving" className="ml-2 block text-sm font-medium text-gray-700">
+                                Show Average Cost of Living for selected location
+                            </label>
+                        </div>
+
+                        {/* Predict Button */}
+                        <button
+                            onClick={handlePredict}
+                            disabled={loading}
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center"
+                        >
+                            {loading ? (
+                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                <DollarSign className="mr-2" size={20} />
+                            )}
+                            {loading ? 'Predicting...' : 'Predict Salary'}
+                        </button>
+                    </div>
+
+                    {/* Prediction Result */}
+                    <div className="bg-indigo-50 p-6 rounded-xl shadow-inner flex flex-col items-center justify-center text-center">
+                        <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
+                            <Zap className="mr-2 text-indigo-500" size={24} /> Prediction Result
+                        </h2>
+                        {error && (
+                            <p className="text-red-600 font-medium mb-4">{error}</p>
+                        )}
+                        {predictedSalaryUSD !== null && (
+                            <div className="text-indigo-800 w-full">
+                                <p className="text-xl sm:text-2xl mb-2">Estimated Annual Salary:</p>
+                                <p className="text-4xl sm:text-5xl font-extrabold text-indigo-700 animate-fade-in mb-2">
+                                    ${parseFloat(predictedSalaryUSD).toLocaleString('en-US')}
+                                </p>
+                                <p className="text-2xl sm:text-3xl font-bold text-indigo-600 animate-fade-in mb-4">
+                                    ₹{parseFloat(predictedSalaryINR).toLocaleString('en-IN')}
+                                </p>
+
+                                {/* Global Average Salaries for Job Position */}
+                                {globalAvgSalaries && Object.keys(globalAvgSalaries).length > 0 && (
+                                    <div className="mt-6 p-4 bg-white rounded-lg shadow-md w-full">
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-center">
+                                            <Globe className="mr-2 text-blue-500" size={20} /> Average Salaries for {formData.Job_Title}
+                                        </h3>
+                                        <ul className="text-left space-y-1 text-gray-700">
+                                            {Object.entries(globalAvgSalaries).map(([location, avgSalary]) => (
+                                                <li key={location} className="flex justify-between items-center text-sm">
+                                                    <span>{location}:</span>
+                                                    <span className="font-medium">${avgSalary.toLocaleString('en-US')}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Average Cost of Living */}
+                                {showCostOfLiving && costOfLiving !== null && (
+                                    <div className="mt-6 p-4 bg-white rounded-lg shadow-md w-full">
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center justify-center">
+                                            <Home className="mr-2 text-green-500" size={20} /> Avg. Monthly Cost of Living in {formData.Location}
+                                        </h3>
+                                        <p className="text-xl font-bold text-green-700">
+                                            ${costOfLiving.toLocaleString('en-US')}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-1">*Estimate for a single person, excluding rent.</p>
+                                    </div>
+                                )}
+                                {showCostOfLiving && costOfLiving === null && (
+                                    <p className="text-sm text-gray-500 mt-4">
+                                        Cost of living data not available for {formData.Location}.
+                                    </p>
+                                )}
+
+                                <p className="text-sm text-gray-600 mt-4">
+                                    *This is an estimate based on the provided inputs and a simplified model.
+                                </p>
+                            </div>
+                        )}
+                        {predictedSalaryUSD === null && !loading && !error && (
+                            <p className="text-gray-500 text-lg">Enter details and click "Predict Salary" to see the estimate.</p>
+                        )}
+                    </div>
+                </main>
+
+                <footer className="bg-gray-800 text-gray-300 p-4 text-center text-sm rounded-b-3xl">
+                    <p>&copy; 2025 Employee Salary Predictor Project. Built with React & Tailwind CSS.</p>
+                </footer>
+            </div>
+        </div>
+    );
+}
+
+export default App;
